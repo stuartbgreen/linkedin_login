@@ -8,13 +8,14 @@ import 'package:http/http.dart';
 
 /// This class is responsible to fetch all information for user after we get
 /// token and code from LinkedIn
-class LinkedInUserWidget extends StatefulWidget {
+class LinkedInUserWidget extends StatelessWidget {
   final Function onGetUserProfile;
   final Function catchError;
   final String redirectUrl;
   final String clientId, clientSecret;
   final AppBar appBar;
   final bool destroySession;
+  final _ViewModel _viewModel;
 
   /// Client state parameter needs to be unique range of characters - random one
   LinkedInUserWidget({
@@ -25,61 +26,83 @@ class LinkedInUserWidget extends StatefulWidget {
     this.catchError,
     this.destroySession = false,
     this.appBar,
-  });
-
-  @override
-  State createState() => _LinkedInUserWidgetState();
-}
-
-class _LinkedInUserWidgetState extends State<LinkedInUserWidget> {
-  final urlLinkedInUserProfile = 'https://api.linkedin.com/v2/me';
-  final urlLinkedInEmailAddress =
-      'https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))';
+  })  : assert(onGetUserProfile != null),
+        assert(redirectUrl != null),
+        assert(clientId != null),
+        assert(clientSecret != null),
+        _viewModel = const _ViewModel();
 
   @override
   Widget build(BuildContext context) => LinkedInAuthorization(
-        destroySession: widget.destroySession,
-        redirectUrl: widget.redirectUrl,
-        clientSecret: widget.clientSecret,
-        clientId: widget.clientId,
-        appBar: widget.appBar,
-        onCallBack: (AuthorizationCodeResponse result) {
-          if (result != null && result.accessToken != null) {
-            get(
-              urlLinkedInUserProfile,
-              headers: {
-                HttpHeaders.acceptHeader: 'application/json',
-                HttpHeaders.authorizationHeader:
-                    'Bearer ${result.accessToken.accessToken}'
-              },
-            ).then((basicProfile) {
-              get(
-                urlLinkedInEmailAddress,
-                headers: {
-                  HttpHeaders.acceptHeader: 'application/json',
-                  HttpHeaders.authorizationHeader:
-                      'Bearer ${result.accessToken.accessToken}'
-                },
-              ).then((emailProfile) {
-                // Get basic user profile
-                final LinkedInUserModel linkedInUser =
-                    LinkedInUserModel.fromJson(json.decode(basicProfile.body));
-                // Get email for current user profile
-                linkedInUser.email = LinkedInProfileEmail.fromJson(
-                  json.decode(emailProfile.body),
-                );
-                linkedInUser.token = result.accessToken;
-
-                // Notify parent class / widget that we have user
-                widget.onGetUserProfile(linkedInUser);
-              });
-            });
-          } else {
-            // If inner class catch the error, then forward it to parent class
-            if (result.error != null && result.error.description.isNotEmpty) {
-              widget.catchError(result.error);
-            }
+        destroySession: destroySession,
+        redirectUrl: redirectUrl,
+        clientSecret: clientSecret,
+        clientId: clientId,
+        appBar: appBar,
+        onCallBack: (AuthorizationCodeResponse authCodeResponse) {
+          if (_viewModel.isAuthorizationSuccess(authCodeResponse)) {
+            _viewModel.handleApiCalls(authCodeResponse).then(
+                (LinkedInUserModel codeResponse) =>
+                    onGetUserProfile(codeResponse));
+          } else if (_viewModel.containsError(authCodeResponse)) {
+            catchError(authCodeResponse.error);
           }
         },
       );
+}
+
+@immutable
+class _ViewModel {
+  const _ViewModel();
+
+  get _getUrlUsers => 'https://api.linkedin.com/v2/me';
+
+  get _getUrlUserEmail =>
+      'https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))';
+
+  Future<LinkedInUserModel> handleApiCalls(
+      AuthorizationCodeResponse codeResponse) async {
+    final Response basicProfile = await get(
+      _getUrlUsers,
+      headers: _generateAuthHeaders(codeResponse),
+    );
+
+    final Response emailProfile = await get(
+      _getUrlUserEmail,
+      headers: _generateAuthHeaders(codeResponse),
+    );
+
+    return _generateUserProfile(
+      basicProfile,
+      emailProfile,
+      codeResponse.accessToken,
+    );
+  }
+
+  String _generateToken(LinkedInTokenObject token) {
+    return 'Bearer ${token?.accessToken ?? ''}';
+  }
+
+  Map<String, String> _generateAuthHeaders(
+      AuthorizationCodeResponse codeResponse) {
+    return {
+      HttpHeaders.acceptHeader: 'application/json',
+      HttpHeaders.authorizationHeader: _generateToken(codeResponse.accessToken),
+    };
+  }
+
+  LinkedInUserModel _generateUserProfile(Response jsonBasicProfile,
+      Response jsonEmail, LinkedInTokenObject token) {
+    return LinkedInUserModel.fromJson(json.decode(jsonBasicProfile.body))
+      ..email = LinkedInProfileEmail.fromJson(
+        json.decode(jsonEmail.body),
+      )
+      ..token = token;
+  }
+
+  bool isAuthorizationSuccess(AuthorizationCodeResponse codeResponse) =>
+      codeResponse != null && codeResponse.accessToken != null;
+
+  bool containsError(AuthorizationCodeResponse codeResponse) =>
+      codeResponse.error != null && codeResponse.error.description.isNotEmpty;
 }

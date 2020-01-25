@@ -6,7 +6,7 @@ repository: https://github.com/d3xt3r2909/linkedin_login
 documentation:
   
 environment:
-  sdk: ">=2.0.0-dev.68.0 <3.0.0"
+  sdk: ">=2.6.0-dev.0.0 <3.0.0"
 
 dependencies:
   flutter:
