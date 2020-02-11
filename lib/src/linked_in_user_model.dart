@@ -104,7 +104,7 @@ class _LinkedInProfilePicture {
 
   factory _LinkedInProfilePicture.fromJson(Map<String, dynamic> json) =>
       _LinkedInProfilePicture(
-        displayImage: json['displayImage'],
+        displayImage: json['displayImage~']['elements'][0]['identifiers'][0]['identifier'],
       );
 
   static _LinkedInProfilePicture parseUser(String responseBody) {

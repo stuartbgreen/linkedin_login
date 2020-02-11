@@ -32,7 +32,7 @@ class LinkedInUserWidget extends StatefulWidget {
 }
 
 class _LinkedInUserWidgetState extends State<LinkedInUserWidget> {
-  final urlLinkedInUserProfile = 'https://api.linkedin.com/v2/me';
+  final urlLinkedInUserProfile = 'https://api.linkedin.com/v2/me?projection=(id,firstName,lastName,profilePicture(displayImage~digitalmediaAsset:playableStreams))';
   final urlLinkedInEmailAddress =
       'https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))';
 
